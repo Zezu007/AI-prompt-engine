@@ -1,0 +1,35 @@
+[
+  {
+    "test_id": 1001,
+    "prompt_text": "Write a Python function to validate email addresses using regex.",
+    "category_tags": ["python", "regex", "validation"],
+    "system_config": {
+      "model_name": "gemini-2.5-flash",
+      "temperature": 0.2,
+      "max_tokens": 500
+    },
+    "created_by": "dev_team",
+    "is_active": true
+  },
+  {
+    "test_id": 1002,
+    "prompt_text": "Summarize the quarterly financial earnings report for Q2.",
+    "category_tags": ["finance", "summarization"],
+    "system_config": {
+      "model_name": "gemini-2.5-pro"
+    },
+    "created_by": "finance_dept",
+    "is_active": true
+  },
+  {
+    "test_id": 1003,
+    "prompt_text": "Draft a cover letter for a Generative AI Engineer position.",
+    "category_tags": ["career", "writing"],
+    "system_config": {
+      "model_name": "gpt-4o",
+      "temperature": 0.8
+    },
+    "created_by": "hr_team",
+    "is_active": false
+  }
+]

@@ -1,0 +1,12 @@
+[project]
+name = "pydantic-crash-course"
+version = "0.1.0"
+description = "Pydantic crash course for type-safe Python and AI development"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+    "openai>=1.0",
+    "ipykernel>=7.1.0",
+]
