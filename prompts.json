@@ -1,0 +1,11 @@
+{
+    "1": {
+        "title": "Customer Support Bot",
+        "template": "You are a helpful support agent. Reply to {customer_name} regarding their order {order_id}.",
+        "targetmodel": "gpt-4",
+        "tags": [
+            "support",
+            "e-commerce"
+        ]
+    }
+}
