@@ -1,0 +1,21 @@
+{
+    "1": {
+        "title": "Customer Support Bot",
+        "template": "You are a helpful support agent. Reply to {customer_name} regarding their order {order_id}.",
+        "targetmodel": "gpt-4",
+        "tags": [
+            "support",
+            "e-commerce"
+        ]
+    },
+    "2": {
+        "title": "Python Code Reviewer",
+        "template": "Review the following {language} code for security bugs and performance bottlenecks:\n\n{code_snippet}",
+        "targetmodel": "claude-3-5",
+        "tags": [
+            "programming",
+            "code-review",
+            "python"
+        ]
+    }
+}

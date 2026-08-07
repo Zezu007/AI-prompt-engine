@@ -1,9 +1,12 @@
 import json
 from pathlib import Path
-from fastapi import FastAPI, HTTPException, Path as pathparam, status
+import aiofiles
+from fastapi import FastAPI, HTTPException, Path as pathparam, Request, status
+from fastapi.responses import JSONResponse
+
 from schema import PromptCreate, PromptRenderRequest, PromptUpdate
 
-DATA_FILE = Path("prompts.json")
+DATAFILE = Path("data.json")
 
 default_prompts = {
     1: {
@@ -14,93 +17,133 @@ default_prompts = {
     }
 }
 
+app = FastAPI(title="Prompt Management API", version="1.0.0")
 
-def load_prompt() -> dict:
-    # Fix 1: Added parenthesis to .exists()
-    if not DATA_FILE.exists():
-        save_prompts(default_prompts)
-        return default_prompts
 
-    # Fix 2 & 3: Read file and convert string keys back to integers
-    with open(DATA_FILE, "r", encoding="utf-8") as f:
-        data = json.load(f)
+
+async def load_prompts() -> dict:
+    if not DATAFILE.exists():
+        await save_prompts(default_prompts)
+        return default_prompts.copy()
+
+    async with aiofiles.open(DATAFILE, "r", encoding="utf-8") as f:
+        content = await f.read()
+        if not content.strip():
+            return {}
+        data = json.loads(content)  
+        
         return {int(k): v for k, v in data.items()}
 
 
-def save_prompts(data: dict):
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4)
+async def save_prompts(data: dict):
+    # Fixed: aiofiles.open instead of aiofiles.write
+    async with aiofiles.open(DATAFILE, "w", encoding="utf-8") as f:
+        await f.write(json.dumps(data, indent=4))  
 
 
-prompts = load_prompt()
 
-app = FastAPI()
 
+@app.exception_handler(HTTPException)
+async def custom_http_exception_handler(request: Request, exc: HTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": True,
+            "status_code": exc.status_code,
+            "message": exc.detail, 
+            "path": request.url.path,
+        },
+    )
+
+
+# --- Routes ---
 
 @app.get("/")
-def root():
+async def root():
     return {"message": "Welcome to the AI Prompt Management API!"}
 
 
 @app.get("/prompts")
-def get_all_prompts():
-    return prompts
+async def get_prompts():
+    return await load_prompts()
 
 
 @app.get("/prompts/{prompt_id}")
-def get_prompt_by_id(
-    prompt_id: int = pathparam(..., gt=0, description="The prompt you want:")
+async def get_prompts_by_prompt_id(
+    prompt_id: int = pathparam(..., gt=0, description="Prompt ID to Fetch")
 ):
-    if prompt_id not in prompts:
-        raise HTTPException(status_code=404, detail="Prompt not found")
-    return prompts[prompt_id]
+    prompts = await load_prompts()  
+    prompt = prompts.get(prompt_id)
+
+    if not prompt:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Prompt Not Found"
+        )
+    return prompt
 
 
-# create
 @app.post("/prompts/{prompt_id}", status_code=status.HTTP_201_CREATED)
-def prompt_creation(prompt_id: int, prompt: PromptCreate):
+async def create_prompt(prompt_id: int, prompt: PromptCreate):
+    prompts = await load_prompts()
+    
+   
     if prompt_id in prompts:
-        raise HTTPException(status_code=400, detail="Prompt ID already exist")
-
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Prompt already exists",
+        )
+        
     prompts[prompt_id] = prompt.model_dump()
-    save_prompts(prompts)
+    await save_prompts(prompts)
     return prompts[prompt_id]
 
 
-# update
 @app.patch("/prompts/{prompt_id}")
-def prompt_update(prompt_id: int, prompt: PromptUpdate):
+async def update_prompt(prompt_id: int, prompt: PromptUpdate):
+    prompts = await load_prompts()
     if prompt_id not in prompts:
-        raise HTTPException(status_code=404, detail="Prompt ID does not exist")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Prompt Not Found"
+        )
 
     updated_data = prompt.model_dump(exclude_unset=True)
-
     prompts[prompt_id].update(updated_data)
-    save_prompts(prompts)
+    
+    await save_prompts(prompts)
     return prompts[prompt_id]
 
 
 @app.delete("/prompts/{prompt_id}")
-def prompt_delete(prompt_id: int):
+async def delete_prompt_by_id(prompt_id: int):
+    prompts = await load_prompts()
     if prompt_id not in prompts:
-        raise HTTPException(status_code=404, detail="Prompt ID not Found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Prompt Not Found"
+        )
 
-    deleted_prompts = prompts.pop(prompt_id)
-    save_prompts(prompts)
-    return {"message": "Prompt Delete", "deleted prompt": deleted_prompts}
+    deleted_prompt = prompts.pop(prompt_id)
+    await save_prompts(prompts)
+
+    return {"message": "Prompt Deleted", "deleted_prompt": deleted_prompt}
 
 
-@app.post("/prompts/{prompt_id}/render")
-def prompt_render(prompt_id: int, request: PromptRenderRequest):
-    if prompt_id not in prompts:
-        raise HTTPException(status_code=404, detail="Prompt Not Found")
-    raw_template = prompts[prompt_id]["template"]
+@app.post("/prompts/{prompt_id}/render")  
+async def prompt_render(prompt_id: int, request: PromptRenderRequest):
+    prompts = await load_prompts()
+    prompt = prompts.get(prompt_id)  
+
+    if not prompt:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Prompt Not Found"
+        )
+
+    raw_template = prompt.get("template", "")
 
     try:
-        rendered_text = raw_template.format(**request.variables)
-        return {"rendered prompt": rendered_text}
-
+        rendered_text = raw_template.format(**request.variables)  
+        return {"rendered_prompt": rendered_text}
     except KeyError as e:
         raise HTTPException(
-            status_code=400, detail=f"Missing required template variable :{e}"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Missing required template variable: {e}",
         )
